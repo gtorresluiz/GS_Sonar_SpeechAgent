@@ -257,7 +257,7 @@ def main() -> None:
                     + "; ".join(f"{l['linha']} ({l['tipo']}, {l['nome']})" for l in res["linhas"] if l["linha"] in esp))
         casos.append({"id": f"rota_{i:02d}", "pergunta": p, "tipo": "rota", "resposta_esperada": resp,
                       "palavras_chave": kw, "trechos_esperados": [], "linhas_esperadas": esp,
-                      "linhas_incorretas": inc})
+                      "linhas_incorretas": inc, "origem": o, "destino": d})
     for i, (p, ausentes) in enumerate(NAO, 1):
         for a in ausentes:
             quem = [t["id"] for t in T if re.search(a, t["texto"].replace("\n", " "), re.I)]

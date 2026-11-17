@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import os
+from typing import TypeVar
 
 import ollama
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from sonar_ia.esquema import RespostaLLM, RespostaSonar, esquema_json
 
@@ -35,3 +36,24 @@ def gerar(sistema: str, usuario: str, tentativas: int = 2) -> RespostaLLM:
         except ValidationError:
             mensagens = mensagens[:2] + [{"role": "assistant", "content": bruto}, {"role": "user", "content": LEMBRETE}]
     return RespostaLLM(resposta=bruto, fonte=[], confianca=0.0, recusou=False, json_valido=False, bruto=bruto)
+
+
+T = TypeVar("T", bound=BaseModel)
+
+
+def gerar_estruturado(sistema: str, usuario: str, classe: type[T], tentativas: int = 2) -> tuple[T | None, str]:
+    """Como `gerar`, mas para qualquer esquema pydantic (usado pelo roteador do agente).
+
+    Devolve (objeto, bruto); objeto é None se a saída não validar depois das tentativas.
+    """
+    mensagens = [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}]
+    bruto = ""
+    for _ in range(tentativas):
+        retorno = ollama.chat(model=nome_modelo(), messages=mensagens, format=classe.model_json_schema(),
+                              options=OPCOES)
+        bruto = retorno["message"]["content"]
+        try:
+            return classe.model_validate_json(bruto), bruto
+        except ValidationError:
+            mensagens = mensagens[:2] + [{"role": "assistant", "content": bruto}, {"role": "user", "content": LEMBRETE}]
+    return None, bruto
