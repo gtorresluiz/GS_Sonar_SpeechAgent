@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aviso - Bilhete Único Especial</title>
+    
+    <!-- Importando a fonte Figtree do Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            /* Fundo da página em branco conforme solicitado */
+            background-color: #ffffff;
+            font-family: "Figtree", sans-serif;
+            min-height: 100vh;
+        }
+
+        /* Máscara com fundo preto transparente */
+        .mascara-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.75);
+			background-image: url('site.png');
+			background-repeat: no-repeat;
+			background-blend-mode: saturation;
+			background-size: cover;
+            
+            /* Flexbox para centralizar o conteúdo vertical e horizontalmente */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            
+            z-index: 9999;
+            padding: 20px;
+        }
+
+        /* Caixa de conteúdo */
+        .conteudo-modal {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 40px 30px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            
+            /* Animação suave ao abrir */
+            animation: modalFadeIn 0.4s ease-out;
+        }
+
+        /* CSS para a imagem do topo */
+        .conteudo-modal .img-topo {
+            max-width: 300px;
+            height: auto;
+            margin-bottom: 24px;
+        }
+
+        .conteudo-modal p {
+            font-size: 1.125rem;
+            line-height: 1.3;
+            color: #333333;
+            margin-bottom: 30px; 
+            font-weight: 500;
+        }
+
+        .conteudo-modal a {
+            color: #6c8d0f;
+            text-decoration: underline;
+            text-underline-offset: 4px;
+            font-weight: 700;
+            transition: color 0.2s ease;
+        }
+
+        .conteudo-modal a:hover {
+            color: #96c11f;
+        }
+
+        .conteudo-modal a:focus-visible {
+            outline: 3px solid #0056b3;
+            outline-offset: 2px;
+            border-radius: 2px;
+        }
+
+        /* Estilo específico para o Logo da SPTrans/Prefeitura no rodapé do modal */
+        .conteudo-modal .logo-sptrans {
+            max-width: 150px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+		
+    </style>
+</head>
+<body>
+
+    <!-- Máscara/Modal -->
+    <div class="mascara-overlay" role="dialog" aria-modal="true" aria-labelledby="titulo-modal">
+        <div class="conteudo-modal">
+            <!-- Imagem solicitada no topo -->
+            <img src="pessoa-com-deficiencia.png" alt="Ícone de Pessoa com Deficiência" class="img-topo">
+            
+            <!-- Texto com link embutido -->
+            <p id="titulo-modal">
+                Informamos que o Bilhete Único Especial da Pessoa com Deficiência deverá ser solicitado pelo 
+                <a href="http://sptrans.com.br/atendimento" target="_blank" rel="noopener noreferrer" aria-label="Abrir o Site de Atendimento em uma nova guia">
+                    Site de Atendimento
+                </a>, 
+                mediante cadastro e envio de dados pessoais do(a) usuário(a) em questão.
+            </p>
+			
+
+            <!-- Logo da SPTrans e Prefeitura -->
+            <img src="logos-sptrans-prefeitura.png" alt="SPTrans | Prefeitura de São Paulo" class="logo-sptrans">
+        </div>
+    </div>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a5bb0cc8bcdd1cf1',t:'MTc5NDg3OTg2Mw=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a5bb0cc8bcdd1cf1',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
