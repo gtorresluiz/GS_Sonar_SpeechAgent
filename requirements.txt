@@ -1,0 +1,17 @@
+pandas==3.1.1
+numpy==2.4.6
+requests==2.34.2
+beautifulsoup4==4.15.0
+pypdf==7.1.0
+sentence-transformers==6.3.0
+faiss-cpu==1.16.0
+ollama==0.6.3
+pydantic==2.14.3
+fastapi==0.163.1
+uvicorn==0.54.0
+httpx==0.28.1
+pytest==9.2.0
+matplotlib==3.11.2
+jupyter==1.1.1
+nbconvert==7.17.2
+ipykernel==7.4.0

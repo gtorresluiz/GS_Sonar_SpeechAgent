@@ -1,0 +1,11 @@
+__pycache__/
+.ipynb_checkpoints/
+.venv/
+.env
+
+# shapes.txt tem ~60 MB e nao e usado pela ferramenta
+base/gtfs/shapes.txt
+*.zip
+
+# GTFS bruto da SPTrans (arquivos nao usados)
+sptrans_gtfs/
