@@ -1,0 +1,65 @@
+{
+  "recall@1": 0.7667,
+  "recall@3": 0.9667,
+  "recall_por_fonte": {
+    "cptm_acess": {
+      "casos": 2,
+      "recall@1": 1.0,
+      "recall@3": 1.0
+    },
+    "dec_caoguia": {
+      "casos": 5,
+      "recall@1": 0.4,
+      "recall@3": 1.0
+    },
+    "lbi": {
+      "casos": 4,
+      "recall@1": 0.75,
+      "recall@3": 1.0
+    },
+    "lei_caoguia": {
+      "casos": 1,
+      "recall@1": 1.0,
+      "recall@3": 1.0
+    },
+    "metro_elev": {
+      "casos": 8,
+      "recall@1": 1.0,
+      "recall@3": 1.0
+    },
+    "metro_pref": {
+      "casos": 1,
+      "recall@1": 1.0,
+      "recall@3": 1.0
+    },
+    "smped_guia": {
+      "casos": 4,
+      "recall@1": 0.75,
+      "recall@3": 1.0
+    },
+    "sptrans_manual": {
+      "casos": 5,
+      "recall@1": 0.6,
+      "recall@3": 0.8
+    }
+  },
+  "limiar": 0.8671,
+  "f1": 0.7568,
+  "precisao": 0.6364,
+  "recall_recusa": 0.9333,
+  "modelo_embedding": "intfloat/multilingual-e5-small",
+  "extras": {
+    "margem_media_top1_top2_elevador": 0.0108,
+    "pegadinhas": {
+      "nao_consta_01": 0.8667,
+      "nao_consta_02": 0.8574,
+      "nao_consta_03": 0.8582
+    },
+    "falsa_recusa_no_limiar_escolhido": 8,
+    "recusa_correta_no_limiar_escolhido": 14,
+    "limiar_prefiltro": 0.8537,
+    "falsa_recusa_prefiltro": 1,
+    "recusa_correta_prefiltro": 5,
+    "recall@1_elevador": 1.0
+  }
+}
