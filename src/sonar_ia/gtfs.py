@@ -53,7 +53,17 @@ class LinhaDireta:
 
 
 class GTFS:
-    def __init__(self, pasta: str | Path):
+    """Consulta determinística sobre o GTFS da SPTrans.
+
+    `modo="v1"` (padrão, o original, usado pelo agente oficial): casa o nome em stop_name + stop_desc e
+    acrescenta as paradas num raio de 300 m. `modo="v2"` (correção C1 da etapa 6): casa só stop_name e
+    escolhe o GRUPO de paradas mais denso, com preferência por nome igual ao pedido (ver `_paradas_v2`).
+    """
+
+    def __init__(self, pasta: str | Path, modo: str = "v1"):
+        if modo not in ("v1", "v2"):
+            raise ValueError(f"modo desconhecido: {modo!r}")
+        self.modo = modo
         pasta = Path(pasta)
         self.stops = pd.read_csv(pasta / "stops.txt", dtype={"stop_id": str})
         self.routes = pd.read_csv(pasta / "routes.txt", dtype={"route_id": str})
@@ -64,9 +74,51 @@ class GTFS:
             usecols=["trip_id", "stop_id", "stop_sequence"],
         )
         self.stops["_tokens"] = (self.stops["stop_name"].fillna("") + " " + self.stops["stop_desc"].fillna("")).map(_tokens)
+        self.stops["_tokens_nome"] = self.stops["stop_name"].fillna("").map(_tokens)
+
+    def _paradas_v2(self, local: str) -> pd.DataFrame:
+        """C1: casa só stop_name; agrupa as paradas casadas por proximidade (<= RAIO_METROS, encadeando) e fica
+        com o grupo com mais paradas. Ordem de escolha: (1) se a pergunta tem "terminal" ou "estação", grupos cujos
+        nomes têm essa palavra; (2) grupo com nome igual ao pedido; (3) mais paradas."""
+        alvo = _tokens(local)
+        if not alvo:
+            return self.stops.iloc[0:0]
+        casadas = self.stops[self.stops["_tokens_nome"].map(lambda t: alvo <= t)]
+        if casadas.empty:
+            return casadas
+        lat, lon = casadas["stop_lat"].to_numpy(), casadas["stop_lon"].to_numpy()
+        n = len(casadas)
+        grupo = [-1] * n
+        for i in range(n):  # componentes conexas (ligação simples) com distância <= RAIO_METROS
+            if grupo[i] != -1:
+                continue
+            grupo[i], fila = i, [i]
+            while fila:
+                a = fila.pop()
+                for b in range(n):
+                    if grupo[b] == -1 and _haversine_m(lat[a], lon[a], lat[b], lon[b]) <= RAIO_METROS:
+                        grupo[b] = i
+                        fila.append(b)
+        norm = normalizar(local)
+        palavras = [p for p in ("terminal", "estacao") if p in norm.split()]
+        nomes = casadas["stop_name"].map(normalizar).tolist()
+
+        exato = casadas["_tokens_nome"].map(lambda t: t == alvo).tolist()
+
+        def chave(g: int) -> tuple[int, int, int]:
+            membros = [k for k in range(n) if grupo[k] == g]
+            prioridade = int(any(p in nomes[k].split() for k in membros for p in palavras)) if palavras else 0
+            # só "mais paradas" escolhia a avenida em vez da estação (o teste Tucuruvi -> Jabaquara quebrou);
+            # por isso um grupo com nome IGUAL ao pedido ("Jabaquara") vem antes de grupos de rua ("Av. Jabaquara, 79")
+            return prioridade, int(any(exato[k] for k in membros)), len(membros)
+
+        melhor = max(set(grupo), key=chave)
+        return casadas.iloc[[k for k in range(n) if grupo[k] == melhor]]
 
     def encontrar_paradas(self, local: str) -> pd.DataFrame:
-        """Paradas cujo nome contém todas as palavras do local + paradas num raio de RAIO_METROS."""
+        """Paradas cujo nome contém todas as palavras do local + paradas num raio de RAIO_METROS (modo v1)."""
+        if self.modo == "v2":
+            return self._paradas_v2(local)
         alvo = _tokens(local)
         if not alvo:
             return self.stops.iloc[0:0]

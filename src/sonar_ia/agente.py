@@ -68,22 +68,23 @@ SISTEMA_REDACAO_ROTA = (
     "para ser falada a uma pessoa cega."
 )
 
-_gtfs: GTFS | None = None
+_gtfs: dict[str, GTFS] = {}
 
 
-def gtfs() -> GTFS:
-    global _gtfs
-    if _gtfs is None:
-        _gtfs = GTFS(RAIZ / "base" / "gtfs")
-    return _gtfs
+def gtfs(v2: bool = False) -> GTFS:
+    """GTFS único por modo: "v1" (agente oficial) ou "v2" (correção C1, agente_v2)."""
+    modo = "v2" if v2 else "v1"
+    if modo not in _gtfs:
+        _gtfs[modo] = GTFS(RAIZ / "base" / "gtfs", modo=modo)
+    return _gtfs[modo]
 
 
 # ---------------------------------------------------------------- ferramentas
 
 
-def consultar_gtfs(origem: str, destino: str) -> dict:
+def consultar_gtfs(origem: str, destino: str, v2: bool = False) -> dict:
     """Ferramenta determinística: linhas diretas entre dois locais (sobre o GTFS da SPTrans)."""
-    return gtfs().linhas_diretas(origem, destino)
+    return gtfs(v2).linhas_diretas(origem, destino)
 
 
 def previsao_onibus(linha: str, parada: str) -> dict:
@@ -165,20 +166,35 @@ def rotear(pergunta: str) -> tuple[Roteamento, bool, str]:
 
 
 def agente(pergunta: str) -> dict:
-    """Config 3: roteador -> ferramenta -> redação. Grava ferramenta, argumentos e saída bruta da ferramenta."""
+    """Config 3 (oficial): roteador -> ferramenta -> redação. Grava ferramenta, argumentos e saída bruta."""
+    return _agente(pergunta, v2=False)
+
+
+def agente_v2(pergunta: str) -> dict:
+    """Config 3 com as correções da etapa 6: C1 (GTFS v2), C2 (citação inválida -> recusa) e
+    C3 (roteador diz "nenhuma", mas a busca acha trecho acima do limiar -> usa buscar_base)."""
+    return _agente(pergunta, v2=True)
+
+
+def _agente(pergunta: str, v2: bool) -> dict:
     rot, rot_valido, rot_bruto = rotear(pergunta)
     args = {k: v for k, v in rot.model_dump().items() if k != "ferramenta" and v}
     extra = {"roteador_valido": rot_valido, "roteador_bruto": rot_bruto}
 
     if rot.ferramenta == "buscar_base":
         saida = configs.rag(pergunta)
+        if v2 and saida["citacao_invalida"]:  # C2: barreira 3
+            return {**_recusa("buscar_base", args, {"recuperados": saida["recuperados"], "scores": saida["scores"],
+                                                    "resposta_descartada": saida["resposta"],
+                                                    "fonte_descartada": saida["fonte"]}, "citacao_invalida",
+                              recuperados=saida["recuperados"], scores=saida["scores"], citacao_invalida=True), **extra}
         return {**saida, "ferramenta": "buscar_base", "argumentos": args, "linha_inventada": False,
                 "saida_ferramenta": {"recuperados": saida["recuperados"], "scores": saida["scores"]}, **extra}
 
     if rot.ferramenta == "consultar_gtfs":
         if not rot.origem or not rot.destino:
             return {**_recusa("consultar_gtfs", args, None, "roteador"), **extra}
-        res = consultar_gtfs(rot.origem, rot.destino)
+        res = consultar_gtfs(rot.origem, rot.destino, v2)
         if not res.get("encontrado") or not res.get("linhas"):
             return {**_recusa("consultar_gtfs", args, res, "ferramenta"), **extra}
         r = gerar(SISTEMA_REDACAO_ROTA,
@@ -203,4 +219,16 @@ def agente(pergunta: str) -> dict:
                 "ferramenta": "previsao_onibus", "argumentos": args, "saida_ferramenta": res,
                 "linha_inventada": False, **extra}
 
+    if v2:  # C3: o roteador desistiu, mas a base tem trecho acima do limiar
+        b = configs.buscador()
+        achados = b.buscar(pergunta, k=1)
+        if b.limiar is not None and achados and achados[0][1] >= b.limiar:
+            saida = configs.rag(pergunta)
+            if saida["citacao_invalida"]:
+                return {**_recusa("buscar_base", args, {"recuperados": saida["recuperados"], "scores": saida["scores"]},
+                                  "citacao_invalida", recuperados=saida["recuperados"], scores=saida["scores"],
+                                  citacao_invalida=True), **extra, "fallback_roteador": True}
+            return {**saida, "ferramenta": "buscar_base", "argumentos": args, "linha_inventada": False,
+                    "saida_ferramenta": {"recuperados": saida["recuperados"], "scores": saida["scores"]},
+                    "fallback_roteador": True, **extra}
     return {**_recusa("nenhuma", args, None, "roteador"), **extra}

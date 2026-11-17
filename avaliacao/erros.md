@@ -102,3 +102,24 @@ Saídas copiadas de `avaliacao/resultados/*.jsonl` (modelo `qwen2.5:3b`, tempera
 - **Camada:** roteamento (extração de argumentos).
 - **Causa:** o roteador escreveu "Terminal Bandeirantes" no lugar de "Terminal Bandeira" e o agente respondeu com as linhas de outro terminal.
 - **Correção proposta:** validar o nome extraído contra os nomes do GTFS (casamento aproximado) e recusar se não existir igual.
+
+### Resultado medido das correções (`agente_v2`, etapa 6, parte C)
+
+C1 = GTFS só por `stop_name` com grupo de paradas (`gtfs.py`, modo `v2`); C2 = `citacao_invalida` → recusa; C3 = roteador "nenhuma" + top-1 da busca ≥ limiar → `buscar_base`.
+
+| erro | casos | antes | depois | correção |
+|---|---|---|---|---|
+| 1 busca | texto_19 | erra | erra | nenhuma (precisa de embedding maior ou expansão de consulta) |
+| 2 id inventado | nao_consta_01 | erra | corrigido | C2 |
+| 3 inversão de "exclusivo" | texto_30 | erra | erra | nenhuma (modelo de 3B) |
+| 4 falsos positivos do GTFS | rota_04, rota_08, rota_12 | erram | corrigidos | C1 |
+| 5 roteador → nenhuma | texto_23, texto_25, texto_29 | erram | corrigidos | C3 |
+| 5 roteador → nenhuma | rota_06 | erra | erra | C3 aciona, mas o RAG não tem o GTFS e recusa |
+| extra: extração | rota_10 | erra | corrigido | C1 (a extração ainda erra o nome, mas a ferramenta não casa e o agente recusa) |
+
+Efeito colateral do C1: `rota_09` (Capelinha → Terminal Santo Amaro) passou de acerto a erro, porque no GTFS os terminais se chamam "Terminal Sto. Amaro, 1" e casar só `stop_name` não acha "Santo Amaro". Correção possível, não feita: normalizar as abreviações do GTFS (Sto., Sta., Pq., Vl., Jd.).
+
+### Erros extras encontrados na medição
+
+- **`recusou=true` com resposta no texto (`nao_consta_12` no RAG, no agente e no agente_v2; `val_nao_consta_05` na validação).** O modelo marca a recusa no campo, mas escreve uma resposta ("Para conseguir um cão-guia, é necessário se inscrever em um centro de treinamento…"). A métrica conta recusa correta e o usuário ouve uma resposta possivelmente inventada. Por isso a recusa correta dos placares é otimista em 1 caso de 15 (0,933 → 0,867 no RAG e no agente). Correção proposta: normalizar a saída (se `recusou=true`, forçar `resposta = "Não consta na base de conhecimento."` e `fonte = []`) ou tratar a divergência como alucinação.
+- **Variação entre execuções.** O mesmo `agente` rodado duas vezes deu texto diferente em 16 dos 63 casos (mesmos trechos e mesma ferramenta) e acerto de 0,746 e 0,730 (`agente_rerun.jsonl`). O modelo roda com temperatura 0 e seed 42, mas o Ollama não é totalmente determinístico. As comparações abaixo de ~1 caso (1,6 pp) são ruído.
