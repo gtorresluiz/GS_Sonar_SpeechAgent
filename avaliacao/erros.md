@@ -27,7 +27,7 @@ Observações do placar do RAG:
 
 Config 3 (agente), saídas em `avaliacao/resultados/agente.jsonl`:
 
-7. **Falsos positivos do GTFS viram resposta confiante (`rota_04`, `rota_08`, `rota_12`).** `consultar_gtfs` casa o nome do local também em `stop_desc` e em paradas num raio de 300 m: "Brás" → "Av. Brás de Abreu", "Bandeira" → "Parada Antônio Bandeira", "Pinheiros" → "Clube Pinheiros", e para terminais devolve paradas de rua (ex.: embarque em "R. Bom Pastor, 3047"). O agente redige com esses resultados sem desconfiar: no `rota_04` mistura as 3 linhas corretas com 2 ônibus que não fazem o trajeto (2582-10, 2769-10); no `rota_08` e no `rota_12`, onde não há linha direta confirmada, afirma uma linha de ônibus. A pós-checagem `linha_inventada` não pega, porque as linhas vieram da ferramenta. Correção proposta (em `gtfs.py`): casar só `stop_name` (não `stop_desc`), preferir estações e terminais, exigir que embarque e desembarque sejam o local pedido (não só a 300 m dele) e conferir o `route_long_name`.
+7. **Falsos positivos do GTFS viram resposta confiante (`rota_04`, `rota_12`).** `consultar_gtfs` casa o nome do local também em `stop_desc` e em paradas num raio de 300 m: "Brás" → "Av. Brás de Abreu", "Bandeira" → "Parada Antônio Bandeira", "Pinheiros" → "Clube Pinheiros", e para terminais devolve paradas de rua (ex.: embarque em "R. Afonso Braz, 912" no `rota_12`). O agente redige com esses resultados sem desconfiar: no `rota_04` mistura as 3 linhas corretas com 2 ônibus que não fazem o trajeto (2582-10, 2769-10); no `rota_12`, onde não há linha direta confirmada, afirma uma linha de ônibus. A pós-checagem `linha_inventada` não pega, porque as linhas vieram da ferramenta. Correção proposta (em `gtfs.py`): casar só `stop_name` (não `stop_desc`), preferir estações e terminais, exigir que embarque e desembarque sejam o local pedido (não só a 300 m dele) e conferir o `route_long_name`.
 8. **Extração de origem trocando o nome próprio (`rota_10`).** "terminal bandeira" virou "Terminal Bandeirantes", e o agente respondeu com as linhas de outro terminal (7267-10, 7272-10, ...). O modelo de 3B reescreve o nome em vez de copiar. Correção proposta: validar o nome extraído contra os nomes do GTFS (casamento aproximado) e, se não existir igual, recusar ou pedir confirmação; instruir o roteador a copiar o nome literalmente.
 9. **Roteador escolhe "nenhuma" para pergunta respondível (`texto_23`, `texto_25`, `texto_29`, `rota_06`).** São 4 recusas indevidas (5 de 30 `texto` com falsa recusa no agente contra 2 no RAG). Correção proposta: mais exemplos no roteador, ou usar "nenhuma" só depois de `buscar_base` também falhar (as barreiras do RAG já protegem contra alucinação).
 
@@ -61,18 +61,16 @@ Saídas copiadas de `avaliacao/resultados/*.jsonl` (modelo `qwen2.5:3b`, tempera
 - **Causa:** o modelo não compara o público do serviço com o público da pergunta e responde "sim" com confiança 1,0.
 - **Correção proposta:** modelo maior (`qwen2.5:7b-instruct`, no Colab T4) e regra no prompt: "antes de dizer sim, confira para quem o serviço é destinado".
 
-### Erro 4. Falsos positivos do GTFS viram resposta confiante (`rota_04`, `rota_08`, `rota_12`)
+### Erro 4. Falsos positivos do GTFS viram resposta confiante (`rota_04`, `rota_12`)
 - **rota_04:** "o que vai do brás ate o tatuapé?"
   - saída real do agente: "Você pode usar o Trem (CPTM) sentido ESTUDANTES ou o Trem (CPTM) sentido CALMON VIANA. Ou ainda, o Metrô sentido CORINTHIANS - ITAQUERA. Para uma opção mais rápida, use o ônibus 2582-10 sentido Term. Pq. D. Pedro Ii ou o ônibus 2769-10 sentido Metrô Tatuapé." (ferramenta `consultar_gtfs`, args {'origem': 'Brás', 'destino': 'Tatuapé'})
   - esperado: linhas CPTM L11, CPTM L12, METRÔ L3 (incorretas: 2582-10, 2769-10)
-- **rota_08:** "qual onibus vai do terminal sacomã ate o terminal santo amaro?"
-  - saída real do agente: "Use o ônibus 476A-10, sentido Term. Sto. Amaro, ele embarca na R. Bom Pastor e desembarca na Parada Da Paz, no sentido Santo Amaro." (ferramenta `consultar_gtfs`, args {'origem': 'Terminal Sacomã', 'destino': 'Terminal Santo Amaro'})
-  - esperado: não há linha direta confirmada (476A-10, 477A-10, 477P-10 são falsos positivos)
+- **rota_08 saiu desta lista:** o gabarito foi corrigido depois da C1b (ver "Gabarito do `rota_08` corrigido após C1b"); o agente original cita `476A-10` e acerta.
 - **rota_12:** "tem onibus direto do terminal santo amaro pro terminal lapa?"
   - saída real do agente: "Estão disponíveis os ônibus 875C-10 e 875C-1 para você, ambos no sentido Term. Lapa, partindo de R. Afonso Braz, 912." (ferramenta `consultar_gtfs`, args {'origem': 'Terminal Santo Amaro', 'destino': 'Terminal Lapa'})
   - esperado: não há linha direta confirmada (875C-1, 875C-10, 477P-10 são falsos positivos)
 - **Camada:** ferramenta (`consultar_gtfs`).
-- **Causa:** `encontrar_paradas` casa o nome do local também em `stop_desc` e acrescenta todas as paradas num raio de 300 m: "Brás" → "Av. Brás de Abreu", "Bandeira" → "Parada Antônio Bandeira", "Pinheiros" → "Clube Pinheiros"; para terminais, devolve paradas de rua (embarque em "R. Bom Pastor, 3047"). O agente redige com o que a ferramenta devolve; a pós-checagem `linha_inventada` não pega, porque as linhas vieram da ferramenta. É o "agente herda a confiança da ferramenta".
+- **Causa:** `encontrar_paradas` casa o nome do local também em `stop_desc` e acrescenta todas as paradas num raio de 300 m: "Brás" → "Av. Brás de Abreu", "Bandeira" → "Parada Antônio Bandeira", "Pinheiros" → "Clube Pinheiros"; para terminais, devolve paradas de rua (embarque em "R. Afonso Braz, 912"). O agente redige com o que a ferramenta devolve; a pós-checagem `linha_inventada` não pega, porque as linhas vieram da ferramenta. É o "agente herda a confiança da ferramenta".
 - **Correção proposta:** casar só `stop_name`; um local casa com o grupo de paradas mais denso (≤ 300 m), priorizando "Terminal" e "Estação" quando a pergunta tiver essas palavras; conferir o `route_long_name`. Medida na parte C (`agente_v2`).
 
 ### Erro 5. Roteador escolhe "nenhuma" para pergunta respondível (`texto_23`, `texto_25`, `texto_29`, `rota_06`, `rota_14`)
@@ -112,7 +110,7 @@ C1 = GTFS só por `stop_name` com grupo de paradas (`gtfs.py`, modo `v2`); C2 = 
 | 1 busca | texto_19 | erra | erra | nenhuma (precisa de embedding maior ou expansão de consulta) |
 | 2 id inventado | nao_consta_01 | erra | corrigido | C2 |
 | 3 inversão de "exclusivo" | texto_30 | erra | erra | nenhuma (modelo de 3B) |
-| 4 falsos positivos do GTFS | rota_04, rota_08, rota_12 | erram | corrigidos | C1 |
+| 4 falsos positivos do GTFS | rota_04, rota_12 | erram | corrigidos | C1 |
 | 5 roteador → nenhuma | texto_23, texto_25, texto_29 | erram | corrigidos | C3 |
 | 5 roteador → nenhuma | rota_06 | erra | erra | C3 aciona, mas o RAG não tem o GTFS e recusa |
 | extra: extração | rota_10 | erra | corrigido | C1 (a extração ainda erra o nome, mas a ferramenta não casa e o agente recusa) |
@@ -134,7 +132,7 @@ Atualiza a tabela acima com a versão final do `agente_v2` (`agente_v2.jsonl`). 
 | 2 id inventado | nao_consta_01 | erra | corrigido | corrigido (C2) |
 | 3 inversão de "exclusivo" | texto_30 | erra | erra | erra |
 | 4 falsos positivos do GTFS | rota_04, rota_12 | erram | corrigidos | corrigidos (C1) |
-| 4 falsos positivos do GTFS | rota_08 | erra | corrigido (recusa) | erra: a C1b devolve `476A-10` entre os terminais pedidos; **gabarito a revisar** |
+| gabarito corrigido | rota_08 | acerta (cita 476A-10) | erra (recusa; passa a ser falsa recusa) | acerta (cita 476A-10) |
 | 5 roteador → nenhuma | texto_23, 25, 29 | erram | corrigidos | corrigidos (C3) |
 | 5 roteador → nenhuma | rota_06 | erra | erra | erra |
 | extra: extração | rota_10 | erra | corrigido | corrigido (a ferramenta não casa e o agente recusa) |
@@ -151,3 +149,19 @@ Erros de tipos novos, que nenhuma das correções C1 a C4 cobre (o agente origin
 2. **Resposta parcial em tabela (`val_texto_01`).** Pergunta: "na estação anhangabaú tem elevador para chegar na plataforma?". Saída real: "Sim, a estação Anhangabaú (Linha 3-Vermelha) tem acesso à plataforma por meio de um elevador." Esperado: elevador para a plataforma **e** rampa na entrada (o trecho `metro_elev_l3-vermelha_anhangabau` traz as duas colunas: acesso à estação por rampa e à plataforma por elevador). Camada: geração (LLM de 3B). Causa: responde só a coluna que a pergunta cita e omite a outra, na mesma família dos erros de `texto_03` e `texto_04`. Correção proposta: reescrever o chunk com frases mais explícitas ("a entrada é por rampa; da entrada à plataforma é por elevador") ou instruir o prompt a citar os dois acessos quando o trecho trouxer os dois.
 
 Também na validação: `val_rota_03` (Chácara Klabin → Santa Cruz) responde que existe trem direto sem citar a linha 5 (correta na substância; o acerto automático exige o código da linha, então é uma limitação da métrica), e `val_nao_consta_05` (trocar para a linha Lilás sem pagar de novo) é respondido ("Não, você não pode trocar…") em vez de recusado. Na versão original do agente o modelo marcou `recusou=true` com essa resposta (o caso que a métrica estrita corrige); no `agente_v2` final nem marcou `recusou`, então o C4 não atua.
+
+### Gabarito do `rota_08` corrigido após C1b
+
+- **Caso:** "qual onibus vai do terminal sacomã ate o terminal santo amaro?" (`rota_08`).
+- **Antes:** `linhas_esperadas = []` e as 3 linhas do GTFS v1 (`476A-10`, `477A-10`, `477P-10`) em `linhas_incorretas`. O gabarito tinha sido verificado olhando as paradas que o v1 devolvia ("R. Bom Pastor, 3047" → "Parada Da Paz"), que são paradas de rua.
+- **Depois da C1b:** a ferramenta v2 casa os terminais certos ("Terminal Sacoma" e "Terminal Sto. Amaro, 1") e devolve `476A-10`. O `stop_times.txt` confirma: viagem `476A-10-0` (68 paradas), **seq 13 = "Terminal Sacoma"** (embarque) e **seq 68 = "Terminal Sto. Amaro, 1"** (desembarque), 55 paradas depois, na ordem certa (R. Bom Pastor, R. Antônio Marcondes, Av. Nazaré, Vergueiro, R. Loefgreen, … até o terminal). A sequência completa é impressa por `avaliacao/gerar_casos.py` (função `evidencia_sequencia`).
+- **Corrigido:** `linhas_esperadas = ["476A-10"]`; `477A-10` e `477P-10` continuam em `linhas_incorretas` (falsos positivos de rua: embarcam em "R. Lino Coutinho, 1929", não no terminal). O v1 mostrava só as paradas de rua mais próximas, e por isso a linha parecia um falso positivo.
+- **Efeito nas métricas** (recalculadas dos jsonl, sem rodar o LLM): o agente original e o `agente_v2` final passam a acertar o caso (citam `476A-10`); o RAG e o `agente_v2` C1-C3 (que recusavam) passam a ter falsa recusa nele. As rotas com linha esperada passam de 12 para 13.
+
+### `rota_07`: regressão da C1b (o grupo mais denso pega o terminal de ônibus em vez da estação CPTM)
+
+- **Caso:** "tem alguma linha de trem do pinheiros pro santo amaro?" (esperado: `CPTM L09`, `637P-10`, `709M-10`).
+- **Saída real do `agente_v2` final:** "Não há linhas de trem disponíveis para você. As opções são ônibus." A ferramenta devolveu só `N705-11`, `709M-10` e `637P-10` (ônibus entre "Terminal Pinheiros" e "Terminal Sto. Amaro"); a Linha 9 sumiu. O `agente_v2` C1-C3 e o agente original acertavam.
+- **Camada:** ferramenta (`gtfs.py`, modo `v2`).
+- **Causa:** a C1b expande "Sto." para "santo". "Santo Amaro" passou a casar dois grupos de paradas com nome igual ao pedido, a estação da CPTM e o "Terminal Sto. Amaro", e o desempate do C1 escolhe o grupo **mais denso**, que é o terminal de ônibus (muitas paradas) e não a estação (poucas). O resultado perde o trem.
+- **Correção proposta (não feita):** quando a pergunta diz "trem", "metrô" ou "linha de trem/metrô", preferir o grupo que tem parada de estação (nome sem "Terminal" e atendida por `route_type` 1 ou 2); sem essas palavras, manter a regra atual. Só medir depois, em conjunto de validação, para não ajustar de novo aos mesmos 63 casos.

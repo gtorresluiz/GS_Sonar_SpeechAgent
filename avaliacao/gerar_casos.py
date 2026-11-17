@@ -180,8 +180,10 @@ ROTAS = [
      ["CPTM L09", "637P-10", "709M-10"],
      ["776M-10", "N633-11", "637J-10", "637G-10", "856R-10", "637G-51", "N603-11"],
      ["L09|L9|linha 9|esmeralda|637P|709M"], None),
+    # gabarito corrigido após a C1b: stop_times confirma 476A-10 de "Terminal Sacoma" a "Terminal Sto. Amaro, 1"
+    # (a sequência de paradas é impressa como evidência); as outras duas continuam falsos positivos de rua.
     ("qual onibus vai do terminal sacomã ate o terminal santo amaro?", "Terminal Sacomã", "Terminal Santo Amaro",
-     [], "TODAS", SEM_LINHA, "Não há linha direta confirmada."),
+     ["476A-10"], ["477A-10", "477P-10"], None, None),
     ("preciso ir do terminal capelinha pro terminal santo amaro, qual onibus pego?", "Terminal Capelinha",
      "Terminal Santo Amaro", None, [], None, None),
     ("que onibus vai do terminal bandeira ate o terminal princesa isabel?", "Terminal Bandeira",
@@ -221,6 +223,26 @@ NAO = [
     ("tem embarque preferencial na estação tucuruvi?", ["TUCURUVI Das"]),
     ("qual o telefone da central de atendimento do metrô?", ["0800", "Central de Atendimento"]),
 ]
+
+
+def evidencia_sequencia(g: GTFS, linha: str, origem: str, destino: str) -> None:
+    """Imprime a sequência de paradas (stop_times) de uma viagem da linha entre os dois nomes de parada."""
+    nomes = g.stops.set_index("stop_id")["stop_name"]
+    rotas = g.routes[g.routes.route_short_name == linha].route_id
+    for trip in g.trips[g.trips.route_id.isin(rotas)].trip_id:
+        st = g.stop_times[g.stop_times.trip_id == trip].sort_values("stop_sequence")
+        seq = [(int(s.stop_sequence), nomes.get(s.stop_id, s.stop_id)) for s in st.itertuples()]
+        pos_o = [i for i, (_, n) in enumerate(seq) if n == origem]
+        pos_d = [i for i, (_, n) in enumerate(seq) if n == destino]
+        if pos_o and pos_d and pos_o[0] < pos_d[0]:
+            o, d = pos_o[0], pos_d[0]
+            print(f"\nEVIDÊNCIA stop_times: linha {linha}, viagem {trip} ({len(seq)} paradas)")
+            print(f"  embarque  : seq {seq[o][0]:>3} {seq[o][1]}")
+            for n, nome in seq[o + 1:d]:
+                print(f"              seq {n:>3} {nome}")
+            print(f"  desembarque: seq {seq[d][0]:>3} {seq[d][1]}   ({d - o} paradas depois do embarque)")
+            return
+    print(f"\nEVIDÊNCIA: nenhuma viagem de {linha} com {origem!r} antes de {destino!r}")
 
 
 def main() -> None:
@@ -270,6 +292,7 @@ def main() -> None:
     with saida.open("w", encoding="utf-8", newline="\n") as f:
         for c in casos:
             f.write(json.dumps(c, ensure_ascii=False) + "\n")
+    evidencia_sequencia(g, "476A-10", "Terminal Sacoma", "Terminal Sto. Amaro, 1")
     print("\n", len(casos), "casos ->", saida)
     print("\nTRECHOS ESPERADOS DOS CASOS DE ELEVADOR (antes -> depois)")
     for c in casos:
