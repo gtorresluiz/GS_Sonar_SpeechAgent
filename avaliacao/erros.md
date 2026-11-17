@@ -11,4 +11,6 @@ Registrados assim que aparecem. Os "5 erros reais" do relatório saem só da se�
 
 ## Erros do sistema
 
-(vazia por enquanto: preenchida a partir das saídas das configurações 1, 2 e 3 na avaliação.)
+1. **Busca semântica não encontra o trecho certo por diferença de vocabulário (`texto_19`).** Pergunta: "quando eu for guiado por alguem, em que braço devo segurar?". O trecho esperado (`sptrans_manual_004`: "acompanhe a pessoa com deficiência visual oferecendo o braço oposto à bengala") fica fora do top-3 (recuperados: `sptrans_manual_005` 0,854, `sptrans_manual_011` 0,854, `sptrans_manual_003` 0,850). "Ser guiado" e "acompanhe… oferecendo o braço" são o mesmo conceito com palavras diferentes, um limite do e5-small. Correção proposta: modelo de embedding maior (e5-base ou bge-m3) ou expansão de consulta. Não corrigido.
+
+(demais erros: preenchidos a partir das saídas das configurações 1, 2 e 3 na avaliação.)

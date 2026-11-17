@@ -43,23 +43,36 @@
       "recall@3": 0.8
     }
   },
-  "limiar": 0.8671,
-  "f1": 0.7568,
-  "precisao": 0.6364,
-  "recall_recusa": 0.9333,
+  "criterio_limiar": "maior limiar com no máximo 1 falsa recusa em 30 casos texto (pré-filtro)",
+  "limiar": 0.8537,
+  "f1": 0.5455,
+  "precisao": 0.8571,
+  "recall_recusa": 0.4,
   "modelo_embedding": "intfloat/multilingual-e5-small",
   "extras": {
-    "margem_media_top1_top2_elevador": 0.0108,
+    "margem_media_top1_top2_elevador": 0.015,
     "pegadinhas": {
-      "nao_consta_01": 0.8667,
-      "nao_consta_02": 0.8574,
+      "nao_consta_01": 0.8733,
+      "nao_consta_02": 0.8602,
       "nao_consta_03": 0.8582
     },
-    "falsa_recusa_no_limiar_escolhido": 8,
-    "recusa_correta_no_limiar_escolhido": 14,
+    "falsa_recusa_no_limiar_escolhido": 1,
+    "recusa_correta_no_limiar_escolhido": 6,
     "limiar_prefiltro": 0.8537,
     "falsa_recusa_prefiltro": 1,
-    "recusa_correta_prefiltro": 5,
-    "recall@1_elevador": 1.0
+    "recusa_correta_prefiltro": 6,
+    "recall@1_elevador": 1.0,
+    "loo": {
+      "falsa_recusa": 2,
+      "recusa_correta": 6
+    },
+    "f1_maximo_comparacao": {
+      "limiar": 0.8739,
+      "f1": 0.7429,
+      "precisao": 0.65,
+      "recall_recusa": 0.8667,
+      "falsa_recusa": 7,
+      "recusa_correta": 13
+    }
   }
 }

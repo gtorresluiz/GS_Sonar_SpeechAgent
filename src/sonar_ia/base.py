@@ -34,7 +34,7 @@ MIN_PALAVRAS, MAX_PALAVRAS, SOBREPOSICAO = 250, 380, 40
 CONFIG_FONTES: dict[str, dict] = {
     "lbi": {"modo": "artigos", "artigos": range(46, 53)},
     "lei_caoguia": {"modo": "artigos"},
-    "metro_elev": {"modo": "tabela_metro"},
+    "metro_elev": {"modo": "tabela_metro", "agrupar": "estacao"},  # v1 (etapa 3): "linha"
     "dec_caoguia": {"modo": "artigos"},
     "smped_guia": {"seletor": "#main-content", "corte_inicio": "Guia de Serviços - Transporte e Mobilidade",
                    "corte_fim": "collections"},
@@ -544,12 +544,37 @@ def dividir_por_artigo(texto: str, artigos: range | None = None, maximo: int = M
 # --------------------------------------------------------- montagem e leitura
 
 
+def slug(texto: str) -> str:
+    """"Jardim São Paulo-Ayrton Senna" -> "jardim-sao-paulo-ayrton-senna"."""
+    ascii_ = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z0-9]+", "-", ascii_).strip("-")
+
+
+def trechos_metro_por_estacao(texto: str) -> list[tuple[str, str]]:
+    """Um trecho por estação e linha: junta todos os locais da estação naquela linha.
+
+    Entrada: o texto de `texto_metro_elev` (uma frase por local). Saída: [(sufixo_do_id, texto)], com
+    sufixo `<linha>_<estacao>` (ex.: "l1-azul_paraiso"). Estação em duas linhas gera dois trechos.
+    """
+    grupos: dict[str, list[str]] = {}
+    for linha in texto.splitlines():
+        m = re.match(r"^Estação (.+?) \(Linha (\d+)-(\w+)\), local ", linha)
+        if not m:
+            continue
+        chave = f"l{m.group(2)}-{m.group(3).lower()}_{slug(m.group(1))}"
+        grupos.setdefault(chave, []).append(linha)
+    return [(chave, "\n".join(frases)) for chave, frases in grupos.items()]
+
 def gerar_trechos(fonte: dict, texto: str, url: str, formato: str, data_coleta: str) -> list[dict]:
     """Aplica o chunking certo à fonte e devolve os trechos com metadados."""
     cfg = CONFIG_FONTES.get(fonte["id"], {})
     if cfg.get("modo") == "artigos":
         textos = dividir_por_artigo(texto, cfg.get("artigos"))
-    elif cfg.get("modo") == "tabela_metro":
+    elif cfg.get("modo") == "tabela_metro" and cfg.get("agrupar") == "estacao":
+        return [{"id": f"{fonte['id']}_{sufixo}", "fonte": fonte["id"], "url": url, "formato": formato,
+                 "licenca": fonte["licenca"], "data_coleta": data_coleta, "texto": t}
+                for sufixo, t in trechos_metro_por_estacao(texto)]
+    elif cfg.get("modo") == "tabela_metro":  # v1: trechos por linha do metrô (250 a 380 palavras)
         textos = []
         for bloco in re.split(r"(?m)^## .*\n", texto):
             if bloco.strip():
