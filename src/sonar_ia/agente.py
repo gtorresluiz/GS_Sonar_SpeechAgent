@@ -171,9 +171,18 @@ def agente(pergunta: str) -> dict:
 
 
 def agente_v2(pergunta: str) -> dict:
-    """Config 3 com as correções da etapa 6: C1 (GTFS v2), C2 (citação inválida -> recusa) e
-    C3 (roteador diz "nenhuma", mas a busca acha trecho acima do limiar -> usa buscar_base)."""
-    return _agente(pergunta, v2=True)
+    """Config 3 com as correções da etapa 6: C1/C1b (GTFS v2 com abreviações), C2 (citação inválida -> recusa),
+    C3 (roteador diz "nenhuma", mas a busca acha trecho acima do limiar -> usa buscar_base) e C4 (recusou=true
+    -> texto de recusa padrão)."""
+    return _normalizar_recusa(_agente(pergunta, v2=True))
+
+
+def _normalizar_recusa(saida: dict) -> dict:
+    """C4: se `recusou=true`, o texto tem que ser a recusa padrão (o app lê a resposta em voz alta).
+    Mantém a recusa de tempo real ("Não tenho previsão em tempo real agora."), que já é uma recusa."""
+    if saida["recusou"] and saida["resposta"] not in (RECUSA, SEM_PREVISAO):
+        return {**saida, "resposta_original": saida["resposta"], "resposta": RECUSA, "fonte": [], "confianca": 0.0}
+    return saida
 
 
 def _agente(pergunta: str, v2: bool) -> dict:

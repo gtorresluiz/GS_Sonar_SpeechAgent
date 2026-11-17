@@ -123,3 +123,31 @@ Efeito colateral do C1: `rota_09` (Capelinha → Terminal Santo Amaro) passou de
 
 - **`recusou=true` com resposta no texto (`nao_consta_12` no RAG, no agente e no agente_v2; `val_nao_consta_05` na validação).** O modelo marca a recusa no campo, mas escreve uma resposta ("Para conseguir um cão-guia, é necessário se inscrever em um centro de treinamento…"). A métrica conta recusa correta e o usuário ouve uma resposta possivelmente inventada. Por isso a recusa correta dos placares é otimista em 1 caso de 15 (0,933 → 0,867 no RAG e no agente). Correção proposta: normalizar a saída (se `recusou=true`, forçar `resposta = "Não consta na base de conhecimento."` e `fonte = []`) ou tratar a divergência como alucinação.
 - **Variação entre execuções.** O mesmo `agente` rodado duas vezes deu texto diferente em 16 dos 63 casos (mesmos trechos e mesma ferramenta) e acerto de 0,746 e 0,730 (`agente_rerun.jsonl`). O modelo roda com temperatura 0 e seed 42, mas o Ollama não é totalmente determinístico. As comparações abaixo de ~1 caso (1,6 pp) são ruído.
+
+### Resultado final das correções (C1, C1b, C2, C3, C4; métrica estrita)
+
+Atualiza a tabela acima com a versão final do `agente_v2` (`agente_v2.jsonl`). A execução anterior, sem C1b e C4, está em `agente_v2_c1_c3.jsonl`.
+
+| erro | casos | antes | v2 (C1-C3) | v2 final (C1b+C4) |
+|---|---|---|---|---|
+| 1 busca | texto_19 | erra | erra | erra |
+| 2 id inventado | nao_consta_01 | erra | corrigido | corrigido (C2) |
+| 3 inversão de "exclusivo" | texto_30 | erra | erra | erra |
+| 4 falsos positivos do GTFS | rota_04, rota_12 | erram | corrigidos | corrigidos (C1) |
+| 4 falsos positivos do GTFS | rota_08 | erra | corrigido (recusa) | erra: a C1b devolve `476A-10` entre os terminais pedidos; **gabarito a revisar** |
+| 5 roteador → nenhuma | texto_23, 25, 29 | erram | corrigidos | corrigidos (C3) |
+| 5 roteador → nenhuma | rota_06 | erra | erra | erra |
+| extra: extração | rota_10 | erra | corrigido | corrigido (a ferramenta não casa e o agente recusa) |
+| efeito colateral do C1 | rota_09 | acerta | **erra** | acerta (C1b) |
+| `recusou=true` com resposta | nao_consta_12 | erra | erra | corrigido (C4) |
+
+Efeitos colaterais da C1b: `rota_07` (Pinheiros → Santo Amaro) passou de acerto a erro. Com as abreviações expandidas, "Santo Amaro" casa dois grupos de nome igual (a estação da CPTM e o "Terminal Sto. Amaro"), a ferramenta fica com o mais denso (o terminal) e perde a Linha 9: a resposta virou "Não há linhas de trem disponíveis para você". Correção possível, não feita: para um local sem "Terminal" na pergunta, preferir a estação.
+
+### Erros encontrados na validação (`avaliacao/casos_validacao.jsonl`)
+
+Erros de tipos novos, que nenhuma das correções C1 a C4 cobre (o agente original e o `agente_v2` erram os mesmos casos):
+
+1. **Troca de origem e destino na extração (`val_rota_01`).** Pergunta: "estou na luz e quero chegar na fradique coutinho. pego o metro sentido vila sonia?". Saída real: o roteador extraiu `origem: "Fradique Coutinho"` e `destino: "Vila São João"`; a ferramenta não achou e o agente respondeu "Não consta na base de conhecimento." Esperado: `METRÔ L4` (origem Luz, destino Fradique Coutinho). Camada: roteamento (extração). Causa: a frase tem origem, destino e um sentido ("vila sonia") misturados; o modelo de 3B trocou a ordem e usou o sentido como destino. Correção proposta: pedir ao roteador origem e destino por campos com a regra "origem é onde a pessoa está, destino é aonde quer chegar; ignore sentido", exemplos com sentido, e validar os dois nomes contra o GTFS antes de consultar.
+2. **Resposta parcial em tabela (`val_texto_01`).** Pergunta: "na estação anhangabaú tem elevador para chegar na plataforma?". Saída real: "Sim, a estação Anhangabaú (Linha 3-Vermelha) tem acesso à plataforma por meio de um elevador." Esperado: elevador para a plataforma **e** rampa na entrada (o trecho `metro_elev_l3-vermelha_anhangabau` traz as duas colunas: acesso à estação por rampa e à plataforma por elevador). Camada: geração (LLM de 3B). Causa: responde só a coluna que a pergunta cita e omite a outra, na mesma família dos erros de `texto_03` e `texto_04`. Correção proposta: reescrever o chunk com frases mais explícitas ("a entrada é por rampa; da entrada à plataforma é por elevador") ou instruir o prompt a citar os dois acessos quando o trecho trouxer os dois.
+
+Também na validação: `val_rota_03` (Chácara Klabin → Santa Cruz) responde que existe trem direto sem citar a linha 5 (correta na substância; o acerto automático exige o código da linha, então é uma limitação da métrica), e `val_nao_consta_05` (trocar para a linha Lilás sem pagar de novo) é respondido ("Não, você não pode trocar…") em vez de recusado. Na versão original do agente o modelo marcou `recusou=true` com essa resposta (o caso que a métrica estrita corrige); no `agente_v2` final nem marcou `recusou`, então o C4 não atua.

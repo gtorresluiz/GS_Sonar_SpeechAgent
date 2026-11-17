@@ -30,6 +30,20 @@ def _tokens(texto: str) -> set[str]:
     return {t for t in normalizar(texto).split() if t not in _STOPWORDS and len(t) > 1}
 
 
+# C1b (modo v2): o GTFS abrevia nomes ("Terminal Sto. Amaro, 1"); expande antes de casar.
+_ABREV = {"sto": "santo", "sta": "santa", "pq": "parque", "vl": "vila", "jd": "jardim", "term": "terminal",
+          "est": "estacao"}
+
+
+def _expandir(texto: str) -> str:
+    """Normaliza e expande as abreviações de _ABREV ("Sto." -> "santo")."""
+    return " ".join(_ABREV.get(t, t) for t in normalizar(texto).split())
+
+
+def _tokens_v2(texto: str) -> set[str]:
+    return {t for t in _expandir(texto).split() if t not in _STOPWORDS and len(t) > 1}
+
+
 def _haversine_m(lat1, lon1, lat2, lon2):
     r = 6_371_000
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -74,13 +88,13 @@ class GTFS:
             usecols=["trip_id", "stop_id", "stop_sequence"],
         )
         self.stops["_tokens"] = (self.stops["stop_name"].fillna("") + " " + self.stops["stop_desc"].fillna("")).map(_tokens)
-        self.stops["_tokens_nome"] = self.stops["stop_name"].fillna("").map(_tokens)
+        self.stops["_tokens_nome"] = self.stops["stop_name"].fillna("").map(_tokens_v2)
 
     def _paradas_v2(self, local: str) -> pd.DataFrame:
         """C1: casa só stop_name; agrupa as paradas casadas por proximidade (<= RAIO_METROS, encadeando) e fica
         com o grupo com mais paradas. Ordem de escolha: (1) se a pergunta tem "terminal" ou "estação", grupos cujos
         nomes têm essa palavra; (2) grupo com nome igual ao pedido; (3) mais paradas."""
-        alvo = _tokens(local)
+        alvo = _tokens_v2(local)
         if not alvo:
             return self.stops.iloc[0:0]
         casadas = self.stops[self.stops["_tokens_nome"].map(lambda t: alvo <= t)]
@@ -99,9 +113,9 @@ class GTFS:
                     if grupo[b] == -1 and _haversine_m(lat[a], lon[a], lat[b], lon[b]) <= RAIO_METROS:
                         grupo[b] = i
                         fila.append(b)
-        norm = normalizar(local)
+        norm = _expandir(local)
         palavras = [p for p in ("terminal", "estacao") if p in norm.split()]
-        nomes = casadas["stop_name"].map(normalizar).tolist()
+        nomes = casadas["stop_name"].map(_expandir).tolist()
 
         exato = casadas["_tokens_nome"].map(lambda t: t == alvo).tolist()
 

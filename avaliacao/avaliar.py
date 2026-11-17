@@ -26,6 +26,18 @@ def _norm(texto: str) -> str:
     return unicodedata.normalize("NFD", texto.lower()).encode("ascii", "ignore").decode()
 
 
+# Uma recusa no TEXTO começa por uma frase como estas (sem acento, minúsculas). Só o início conta: um texto
+# que responde e termina com "Recusou=true" não é recusa.
+_RECUSA_TEXTO = re.compile(
+    r"^(?:(?:desculpe|infelizmente|sinto muito)\W*)?(?:nao consta|nao tenho (?:previsao|acesso|informac|como)|"
+    r"nao sei|nao encontrei|nao posso (?:informar|responder)|recuso)")
+
+
+def e_recusa(resposta: str) -> bool:
+    """O texto da resposta é uma recusa? O app LÊ a resposta em voz alta: o que vale é o que a pessoa ouve."""
+    return bool(_RECUSA_TEXTO.match(_norm(resposta).strip()))
+
+
 def tem_palavras_chave(resposta: str, palavras_chave: list[str]) -> bool:
     """Todos os itens têm que aparecer; cada item aceita variantes `a|b` (qualquer uma) e pedaço de palavra."""
     alvo = _norm(resposta)
@@ -44,11 +56,17 @@ def cita_linha(resposta: str, linha: str) -> bool:
     return bool(re.search(rf"\b{re.escape(prefixo)}(?:-\d+)?\b", alvo))
 
 
-def avaliar_caso(caso: dict, saida: dict) -> dict:
-    """Métricas de um caso. `saida` é o dict devolvido pela configuração."""
+def avaliar_caso(caso: dict, saida: dict, estrito: bool = False) -> dict:
+    """Métricas de um caso. `saida` é o dict devolvido pela configuração.
+
+    `estrito=True`: só conta como recusa se `recusou=true` E o texto da resposta é uma recusa. Um caso com
+    `recusou=true` e resposta afirmativa vira resposta (acerta ou alucina pelo que foi escrito).
+    """
     tipo = caso["tipo"]
-    recusou = bool(saida["recusou"])
     resposta = saida["resposta"]
+    recusou = bool(saida["recusou"])
+    if estrito:
+        recusou = recusou and e_recusa(resposta)
     esperadas, incorretas = caso["linhas_esperadas"], caso.get("linhas_incorretas", [])
     tem_resposta = tipo == "texto" or (tipo == "rota" and bool(esperadas))
 
@@ -96,7 +114,8 @@ def avaliar(nome_config: str, fn: Callable[[str], dict], casos: list[dict], dir_
             saida = fn(caso["pergunta"])
             latencia = time.perf_counter() - t0
             registro = {"id": caso["id"], "tipo": caso["tipo"], "pergunta": caso["pergunta"], "saida": saida,
-                        "metricas": avaliar_caso(caso, saida), "latencia_s": round(latencia, 2)}
+                        "metricas": avaliar_caso(caso, saida), "metricas_estritas": avaliar_caso(caso, saida, estrito=True),
+                        "latencia_s": round(latencia, 2)}
             f.write(json.dumps(registro, ensure_ascii=False) + "\n")
             f.flush()
             feitos[caso["id"]] = registro
@@ -105,6 +124,19 @@ def avaliar(nome_config: str, fn: Callable[[str], dict], casos: list[dict], dir_
                 print(f"[{i}/{len(casos)}] {caso['id']:<14} {latencia:5.1f}s  acerto={m['acerto']!s:<5} "
                       f"recusou={m['recusou']!s:<5} alucinacao={m['alucinacao']!s:<5}", flush=True)
     return [feitos[c["id"]] for c in casos if c["id"] in feitos]
+
+
+def reavaliar(registros: list[dict], por_id: dict[str, dict], estrito: bool = True) -> list[dict]:
+    """Recalcula as métricas dos registros já gravados (sem rodar o LLM). Devolve cópias."""
+    return [{**r, "metricas": avaliar_caso(por_id[r["id"]], r["saida"], estrito=estrito)} for r in registros]
+
+
+def divergencias(registros: list[dict]) -> list[dict]:
+    """Casos em que o campo `recusou` e o texto discordam: recusou=true com texto que não é recusa
+    (o app leria uma resposta) ou recusou=false com texto de recusa."""
+    return [{"id": r["id"], "recusou": bool(r["saida"]["recusou"]), "resposta": r["saida"]["resposta"]}
+            for r in registros if bool(r["saida"]["recusou"]) != e_recusa(r["saida"]["resposta"])
+            and (r["saida"]["recusou"] or e_recusa(r["saida"]["resposta"]))]
 
 
 def _taxa(valores: list[bool]) -> float | None:
