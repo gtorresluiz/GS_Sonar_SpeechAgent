@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import re
+import unicodedata
 from datetime import date
 from pathlib import Path
 from urllib.parse import urljoin
@@ -100,13 +101,29 @@ def _arquivo_manual(id_fonte: str, dir_brutos: Path) -> Path | None:
     return None
 
 
-def obter_bruto(fonte: dict, dir_brutos: Path = DIR_BRUTOS) -> dict:
-    """Baixa a fonte e salva em base/brutos/<id>.<ext>; se falhar, usa o arquivo salvo à mão.
+def _coleta_anterior(id_fonte: str) -> dict | None:
+    """url e data_coleta gravados em trechos.jsonl para a fonte (None se ainda não houver)."""
+    if not CAMINHO_TRECHOS.exists():
+        return None
+    for t in carregar_trechos():
+        if t["fonte"] == id_fonte:
+            return {"url": t["url"], "data_coleta": t["data_coleta"]}
+    return None
 
-    Retorna {caminho, url, formato, data_coleta, aviso}; `caminho` é None se não houver nada.
+
+def obter_bruto(fonte: dict, dir_brutos: Path = DIR_BRUTOS, forcar: bool = False) -> dict:
+    """Usa o original versionado em base/brutos/<id>.<ext>; se não existir (ou `forcar`), baixa e salva.
+
+    Se o download falhar, usa o arquivo salvo à mão. Retorna {caminho, url, formato, data_coleta, aviso};
+    `caminho` é None se não houver nada. Reaproveitar o original mantém a base reproduzível: as páginas mudam.
     """
     dir_brutos.mkdir(parents=True, exist_ok=True)
     id_fonte, url = fonte["id"], fonte["url"]
+    existente = None if forcar else _arquivo_manual(id_fonte, dir_brutos)
+    anterior = _coleta_anterior(id_fonte)
+    if existente and anterior:
+        return {"caminho": existente, "url": anterior["url"], "formato": existente.suffix[1:].upper(),
+                "data_coleta": anterior["data_coleta"], "aviso": None}
     formato = fonte["formato"].lower()
     try:
         r = requests.get(url, headers=CABECALHOS, timeout=60)
@@ -147,7 +164,7 @@ _CABECALHO_LEI = re.compile(r"^(CAP[ÍI]TULO|T[ÍI]TULO|SE[ÇC][ÃA]O|SUBSE[ÇC]
 
 
 def _limpar_linhas(texto: str) -> list[str]:
-    texto = texto.replace("\xa0", " ").replace("​", "").replace("\xad", "")
+    texto = unicodedata.normalize("NFC", texto).replace("\xa0", " ").replace("​", "").replace("\xad", "")
     linhas = (re.sub(r"\s+", " ", l).strip() for l in texto.splitlines())
     return [l for l in linhas if l and not _RUIDO.match(l)]
 
@@ -181,7 +198,7 @@ def pdf_para_texto(conteudo: bytes) -> str:
     """Texto de um PDF (pypdf), com hifenização de fim de linha desfeita e quebras viradas em espaço."""
     leitor = PdfReader(io.BytesIO(conteudo))
     texto = "\n".join((p.extract_text() or "") for p in leitor.pages)
-    texto = texto.replace("\xad", "").replace("\xa0", " ")
+    texto = unicodedata.normalize("NFC", texto).replace("\xad", "").replace("\xa0", " ")
     texto = re.sub(r"(\w)-\n(?=[a-zà-ú])", r"\1", texto)
     return re.sub(r"\s+", " ", texto).strip()
 
