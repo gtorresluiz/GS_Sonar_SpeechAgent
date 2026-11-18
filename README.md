@@ -18,6 +18,8 @@ Quando a resposta não está na base, ele recusa: `"Não consta na base de conhe
 
 O relatório técnico completo está em **[RELATORIO.md](RELATORIO.md)**.
 
+▶️ **Vídeo de demonstração (3 min):** https://www.youtube.com/watch?v=buBn3XlFTOo
+
 ## Resultado em uma linha
 Nos 63 casos de teste, o agente final (`agente_v2`) acerta 84,1% e alucina 11,1%. O mesmo modelo sem contexto
 acerta 23,8% e alucina 76,2%. Detalhes, ressalvas e validação estão em [avaliacao/placar.md](avaliacao/placar.md).

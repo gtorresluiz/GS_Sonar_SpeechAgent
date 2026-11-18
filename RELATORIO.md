@@ -207,7 +207,7 @@ As saídas abaixo são reais, copiadas de `avaliacao/resultados/*.jsonl`. A perg
 ## 8. Links
 
 - **Repositório:** https://github.com/gtorresluiz/GS_Sonar_SpeechAgent
-- **Vídeo de demonstração:** _[link do vídeo — a publicar]_
+- **Vídeo de demonstração:** https://www.youtube.com/watch?v=buBn3XlFTOo
 - **Placar completo:** [`avaliacao/placar.md`](avaliacao/placar.md)
 - **Erros e correções:** [`avaliacao/erros.md`](avaliacao/erros.md)
 - **Fontes:** [`base/fontes.md`](base/fontes.md)

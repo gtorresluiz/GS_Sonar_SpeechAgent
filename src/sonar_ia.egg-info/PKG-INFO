@@ -1,0 +1,136 @@
+Metadata-Version: 2.4
+Name: sonar-ia
+Version: 0.1.0
+Summary: Sonar - Assistente de Mobilidade Acessivel
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+
+# Sonar: assistente de mobilidade acessível
+
+Projeto da disciplina **Generative AI for Engineering**, da FIAP (Global Solution, componente de Inteligência do Sonar).
+
+O Sonar é um app de acessibilidade para pessoas cegas no transporte público de São Paulo. Este repositório é o
+**assistente** do app: ele entende a pergunta e responde sobre transporte **com fonte, sem inventar**, sempre em JSON:
+
+```json
+{"resposta": "...", "fonte": ["metro_elev_l1-azul_tucuruvi"], "confianca": 1.0, "recusou": false}
+```
+
+Quando a resposta não está na base, ele recusa: `"Não consta na base de conhecimento."`.
+
+- **LLM local:** `qwen2.5:3b` via [Ollama]. Nenhuma chamada a APIs de LLM em nuvem.
+- **Busca:** `intfloat/multilingual-e5-small` + FAISS sobre 108 trechos de 9 fontes públicas.
+- **Agente:** roteador com o LLM e três ferramentas (`buscar_base`, `consultar_gtfs` e `previsao_onibus`).
+- **API:** `POST /assistente/perguntar`.
+
+O relatório técnico completo está em **[RELATORIO.md](RELATORIO.md)**.
+
+## Resultado em uma linha
+Nos 63 casos de teste, o agente final (`agente_v2`) acerta 84,1% e alucina 11,1%. O mesmo modelo sem contexto
+acerta 23,8% e alucina 76,2%. Detalhes, ressalvas e validação estão em [avaliacao/placar.md](avaliacao/placar.md).
+
+## Como reproduzir
+
+### 1. Requisitos
+- Python 3.11
+- [Ollama] instalado e rodando
+- Git
+
+### 2. Ambiente
+```bash
+git clone https://github.com/gtorresluiz/GS_Sonar_SpeechAgent.git
+cd GS_Sonar_SpeechAgent
+python -m venv .venv
+# Windows: .venv\Scripts\activate    |    Linux/macOS: source .venv/bin/activate
+pip install -r requirements.txt
+ollama pull qwen2.5:3b
+```
+Na primeira execução, o `sentence-transformers` baixa o modelo de embedding do Hugging Face, o que exige internet.
+
+### 3. Dados (já versionados)
+- `base/brutos/`: os originais coletados (HTML/PDF). Ficam versionados porque as páginas mudam: o Guia do
+  Passageiro do Metrô, por exemplo, saiu do ar durante o projeto. O notebook 01 reaproveita esses arquivos e só baixa
+  o que faltar.
+- `base/gtfs/`: 7 arquivos do GTFS da SPTrans (versão de 12/11/2026). O `shapes.txt` fica fora porque não é usado e tem cerca de 60 MB.
+  Para atualizar, faça o cadastro no [portal de desenvolvedores da SPTrans](https://www.sptrans.com.br/desenvolvedores/),
+  baixe o GTFS e copie `agency`, `calendar`, `routes`, `trips`, `stops`, `stop_times` e `frequencies` (`.txt`).
+  Os dados estão sujeitos aos termos de uso do portal.
+
+### 4. Notebooks, na ordem
+Rode da raiz do repositório:
+```bash
+jupyter nbconvert --to notebook --execute --inplace notebooks/01_coleta_e_chunking.ipynb
+jupyter nbconvert --to notebook --execute --inplace notebooks/02_busca_recall_limiar.ipynb
+jupyter nbconvert --to notebook --execute --inplace notebooks/03_config1_sem_contexto.ipynb
+jupyter nbconvert --to notebook --execute --inplace notebooks/04_config2_rag.ipynb
+jupyter nbconvert --to notebook --execute --inplace notebooks/05_config3_agente.ipynb
+python avaliacao/rodar_v2_e_validacao.py
+jupyter nbconvert --to notebook --execute --inplace notebooks/06_placar_e_erros.ipynb
+```
+
+| Notebook / script | O que faz | Saída |
+|---|---|---|
+| 01 | coleta, limpeza e chunking das fontes | `base/trechos.jsonl`, `base/fontes.md` |
+| 02 | busca, recall@1 e recall@3, limiar | `avaliacao/busca.json`, `avaliacao/limiar.png` |
+| 03 | config 1: LLM sem contexto (e a 1b, com instrução de recusa) | `avaliacao/resultados/sem_contexto*.jsonl` |
+| 04 | config 2: RAG simples | `avaliacao/resultados/rag.jsonl` |
+| 05 | config 3: agente com ferramentas | `avaliacao/resultados/agente.jsonl` |
+| `rodar_v2_e_validacao.py` | agente corrigido e validação | `agente_v2.jsonl`, `validacao_*.jsonl` |
+| 06 | placar, 5 erros, correções e validação | `avaliacao/placar.png`, `avaliacao/roteador.png` |
+
+**Os resultados já estão versionados**, e a avaliação **retoma de onde parou**: os casos já gravados em
+`avaliacao/resultados/` são pulados. Para rodar o LLM do zero, apague os `.jsonl` dessa pasta antes. Mesmo com
+temperatura 0 e seed 42, o Ollama varia cerca de 1 caso entre execuções (ver `placar.md`). O tempo de execução
+depende do hardware.
+
+### 5. API
+```bash
+uvicorn api.main:app --port 8000
+```
+```bash
+curl -s -X POST http://127.0.0.1:8000/assistente/perguntar \
+  -H "Content-Type: application/json" \
+  -d '{"pergunta": "qual linha do metrô vai do tucuruvi ate o jabaquara?"}'
+# {"resposta":"Use a linha L1 do Metrô, sentido Jabaquara, ...","fonte":["gtfs_sptrans"],"confianca":1.0,"recusou":false,"ferramenta":"consultar_gtfs","config":"agente_v2"}
+
+curl -s http://127.0.0.1:8000/saude
+```
+O campo opcional `config` aceita `agente_v2` (padrão), `agente` ou `rag`.
+
+**Privacidade (LGPD):** a API não recebe identificador de usuário, não guarda histórico e não persiste áudio. O log
+registra só a configuração, a ferramenta e a latência. O LLM é local, então nenhum dado sai da máquina.
+
+### 6. Testes
+```bash
+pytest -q
+```
+São 11 testes: 6 da ferramenta GTFS (v1 e v2) e 5 da API. Os da API usam o Ollama local e são pulados se ele não
+estiver rodando.
+
+### Variáveis de ambiente (opcionais)
+| Variável | Uso |
+|---|---|
+| `SONAR_MODELO` | troca o LLM (padrão `qwen2.5:3b`; ex.: `qwen2.5:7b-instruct`) |
+| `SPTRANS_TOKEN` | habilita a ferramenta `previsao_onibus` (API Olho Vivo). É só para demo e fica fora da avaliação |
+
+## Estrutura
+```
+base/        fontes.md (tabela das fontes), trechos.jsonl, brutos/ (originais), gtfs/
+notebooks/   01 a 06, executados e com saídas salvas
+avaliacao/   casos_teste.jsonl (63), casos_validacao.jsonl (12), gerar_casos.py, avaliar.py,
+             rodar_v2_e_validacao.py, busca.json, placar.md, erros.md, resultados/, gráficos
+src/sonar_ia/ base, busca, llm, esquema, configs (sem_contexto e rag), agente (agente e agente_v2), gtfs
+api/         main.py (FastAPI)
+tests/       test_gtfs.py, test_gtfs_v2.py, test_api.py
+```
+
+## Equipe
+| Nome | RM |
+|---|---|
+| Gabriel Torres Luiz | RM 98600 |
+| Eduardo Fedeli Souza | RM 550132 |
+| Otavio Vitoriano da Silva | RM 552012 |
+| Rodrigo Resende Viana | RM 551057 |
+| Caíque Chagas Nitta | RM 551943 |
+
+[Ollama]: https://ollama.com

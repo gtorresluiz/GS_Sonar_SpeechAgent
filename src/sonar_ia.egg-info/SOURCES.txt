@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+src/sonar_ia/__init__.py
+src/sonar_ia/agente.py
+src/sonar_ia/base.py
+src/sonar_ia/busca.py
+src/sonar_ia/configs.py
+src/sonar_ia/esquema.py
+src/sonar_ia/gtfs.py
+src/sonar_ia/llm.py
+src/sonar_ia.egg-info/PKG-INFO
+src/sonar_ia.egg-info/SOURCES.txt
+src/sonar_ia.egg-info/dependency_links.txt
+src/sonar_ia.egg-info/top_level.txt
+tests/test_api.py
+tests/test_gtfs.py
+tests/test_gtfs_v2.py
